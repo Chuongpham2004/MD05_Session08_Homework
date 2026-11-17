@@ -1,0 +1,28 @@
+# Self-hosted GitHub Actions Runner theo mô hình Docker-outside-of-Docker (DooD)
+#
+# Runner chạy trong container nhưng KHÔNG có Docker daemon riêng.
+# Ta chia sẻ Unix socket của Docker daemon trên máy host vào container,
+# nên mọi lệnh `docker ...` trong job CI thực chất được gửi tới daemon của host.
+services:
+  github-runner:
+    image: myoung34/github-runner:latest
+    container_name: quickbite-runner
+    restart: unless-stopped
+    environment:
+      REPO_URL: ${REPO_URL}               # vd: https://github.com/<user>/<repo>
+      RUNNER_TOKEN: ${RUNNER_TOKEN}       # token đăng ký lấy ở Settings > Actions > Runners
+      RUNNER_NAME: quickbite-runner
+      RUNNER_WORKDIR: /tmp/runner/work
+      LABELS: self-hosted,linux,docker
+      RUNNER_SCOPE: repo
+      RUN_AS_ROOT: "true"                 # root để có quyền đọc/ghi docker.sock
+    volumes:
+      # ===== FIX LỖI "Cannot connect to the Docker daemon" =====
+      # Mount socket của host vào đúng đường dẫn mặc định mà Docker CLI tìm tới
+      # (unix:///var/run/docker.sock) bên trong container.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Thư mục làm việc của runner (giữ cache giữa các lần chạy)
+      - runner-work:/tmp/runner/work
+
+volumes:
+  runner-work:
