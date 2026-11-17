@@ -71,3 +71,13 @@ db8003a7532c: Pushed
 - Package: https://github.com/users/Chuongpham2004/packages/container/package/payment-service
 - Tag trên registry: `1.0.0` (tạo lúc 2026-11-17 16:02 UTC)
 - Pull lại để kiểm chứng: `docker pull ghcr.io/chuongpham2004/payment-service:1.0.0`
+
+### Ảnh chụp minh chứng
+
+Đăng nhập GHCR bằng PAT thành công:
+
+![docker login ghcr.io - Login Succeeded](screenshots/04-ghcr-login-succeeded.png)
+
+Package `payment-service` trên trang Packages của profile GitHub:
+
+![GitHub Packages - payment-service](screenshots/05-ghcr-packages-list.png)
