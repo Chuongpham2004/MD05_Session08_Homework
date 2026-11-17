@@ -1,0 +1,89 @@
+name: CD - delivery-service (Build -> Push GHCR -> Verify)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# GITHUB_TOKEN chỉ được cấp đúng quyền cần thiết:
+# đọc mã nguồn + ghi package lên GHCR
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: delivery-service
+
+jobs:
+  build-push-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # 1) Check out mã nguồn
+      - name: Checkout ma nguon
+        uses: actions/checkout@v4
+
+      # Chuẩn bị tên image: GHCR bắt buộc chữ thường (Chuongpham2004 -> chuongpham2004)
+      - name: Chuan bi ten image va tag
+        run: |
+          OWNER_LC="${GITHUB_REPOSITORY_OWNER,,}"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "IMAGE_REPO=${REGISTRY}/${OWNER_LC}/${IMAGE_NAME}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=sha-${SHORT_SHA}" >> "$GITHUB_ENV"
+
+      # 2) Build Docker image từ Dockerfile multi-stage (JDK build -> JRE run)
+      - name: Build Docker image
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t "${IMAGE_NAME}:local" .
+          docker images "${IMAGE_NAME}:local"
+
+      # 3) Đăng nhập GHCR bằng token mặc định của GitHub Actions (không dùng PAT)
+      - name: Dang nhap GHCR bang GITHUB_TOKEN
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4) Gắn tag chuẩn ghcr.io/<owner>/<image>:<tag> và push
+      - name: Gan tag va Push len GHCR
+        run: |
+          docker tag "${IMAGE_NAME}:local" "${IMAGE_REPO}:${IMAGE_TAG}"
+          docker tag "${IMAGE_NAME}:local" "${IMAGE_REPO}:latest"
+          docker push "${IMAGE_REPO}:${IMAGE_TAG}"
+          docker push "${IMAGE_REPO}:latest"
+
+      # 5) Verify: xoá image local, kéo lại đúng image vừa push và chạy container nền
+      - name: Verify run tu image tren GHCR
+        run: |
+          docker rmi -f "${IMAGE_NAME}:local" "${IMAGE_REPO}:${IMAGE_TAG}" "${IMAGE_REPO}:latest"
+          docker run -d --name "${IMAGE_NAME}" -p 8080:8080 "${IMAGE_REPO}:${IMAGE_TAG}"
+
+          for i in $(seq 1 20); do
+            if docker logs "${IMAGE_NAME}" 2>&1 | grep -q "Started "; then break; fi
+            sleep 1
+          done
+
+          echo "===== Trang thai container ====="
+          docker ps -a --filter "name=${IMAGE_NAME}" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+          STATUS=$(docker inspect -f '{{.State.Status}}' "${IMAGE_NAME}")
+          EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' "${IMAGE_NAME}")
+          echo "State=${STATUS} ExitCode=${EXIT_CODE}"
+
+          echo "===== Log ung dung ====="
+          docker logs "${IMAGE_NAME}"
+
+          if docker logs "${IMAGE_NAME}" 2>&1 | grep -q "Started " && [ "${EXIT_CODE}" = "0" ]; then
+            echo "✅ Verify thanh cong: ${IMAGE_REPO}:${IMAGE_TAG}"
+          else
+            echo "❌ Verify that bai"
+            exit 1
+          fi
+
+      - name: Don dep
+        if: always()
+        run: docker rm -f "${IMAGE_NAME}" || true
