@@ -81,3 +81,7 @@ db8003a7532c: Pushed
 Package `payment-service` trên trang Packages của profile GitHub:
 
 ![GitHub Packages - payment-service](screenshots/05-ghcr-packages-list.png)
+
+Trang chi tiết package hiển thị phiên bản `1.0.0`:
+
+![payment-service 1.0.0](screenshots/06-ghcr-package-1.0.0.png)
