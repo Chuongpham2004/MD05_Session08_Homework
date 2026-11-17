@@ -1,0 +1,23 @@
+name: Bai 1 - Docker on Self-hosted Runner (DooD)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  docker-build:
+    runs-on: [ self-hosted, linux, docker ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Kiem tra ket noi Docker daemon (DooD)
+        run: |
+          ls -l /var/run/docker.sock
+          docker version
+          docker info
+
+      - name: Build Docker image
+        run: docker build -t quickbite-app:${{ github.sha }} .
+
+      - name: Liet ke image vua build
+        run: docker images quickbite-app
