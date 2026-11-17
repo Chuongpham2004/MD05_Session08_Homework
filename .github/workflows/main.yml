@@ -63,23 +63,27 @@ jobs:
           docker rmi -f "${IMAGE_NAME}:local" "${IMAGE_REPO}:${IMAGE_TAG}" "${IMAGE_REPO}:latest"
           docker run -d --name "${IMAGE_NAME}" -p 8080:8080 "${IMAGE_REPO}:${IMAGE_TAG}"
 
-          for i in $(seq 1 20); do
-            if docker logs "${IMAGE_NAME}" 2>&1 | grep -q "Started "; then break; fi
+          # Chờ ứng dụng sẵn sàng qua health check (tối đa 60 giây)
+          HEALTH=""
+          for i in $(seq 1 60); do
+            HEALTH=$(curl -sf http://localhost:8080/actuator/health || true)
+            if echo "${HEALTH}" | grep -q '"status":"UP"'; then break; fi
             sleep 1
           done
 
           echo "===== Trang thai container ====="
-          docker ps -a --filter "name=${IMAGE_NAME}" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+          docker ps -a --filter "name=${IMAGE_NAME}" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
           STATUS=$(docker inspect -f '{{.State.Status}}' "${IMAGE_NAME}")
-          EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' "${IMAGE_NAME}")
-          echo "State=${STATUS} ExitCode=${EXIT_CODE}"
+          echo "State=${STATUS}"
 
-          echo "===== Log ung dung ====="
-          docker logs "${IMAGE_NAME}"
+          echo "===== Health check ====="
+          echo "GET /actuator/health -> ${HEALTH}"
 
-          if docker logs "${IMAGE_NAME}" 2>&1 | grep -q "Started " && [ "${EXIT_CODE}" = "0" ]; then
-            echo "✅ Verify thanh cong: ${IMAGE_REPO}:${IMAGE_TAG}"
+          if [ "${STATUS}" = "running" ] && echo "${HEALTH}" | grep -q '"status":"UP"'; then
+            echo "✅ Verify thanh cong: ${IMAGE_REPO}:${IMAGE_TAG} dang chay (Up) va health = UP"
           else
+            echo "===== Log ung dung ====="
+            docker logs "${IMAGE_NAME}"
             echo "❌ Verify that bai"
             exit 1
           fi
