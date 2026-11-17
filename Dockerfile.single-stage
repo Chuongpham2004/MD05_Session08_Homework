@@ -1,0 +1,8 @@
+# Phiên bản đối chứng: KHÔNG dùng multi-stage
+# Image cuối chứa cả JDK, mã nguồn, Gradle wrapper và cache build → rất nặng
+FROM eclipse-temurin:17-jdk-alpine
+WORKDIR /app
+COPY . .
+RUN ./gradlew bootJar && cp build/libs/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,11 +1,14 @@
-# Stage 1: build jar
-FROM eclipse-temurin:17-jdk AS build
+# Stage 1: Build mã nguồn
+FROM eclipse-temurin:17-jdk-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN chmod +x gradlew && ./gradlew bootJar -x test --no-daemon
+RUN ./gradlew bootJar
 
-# Stage 2: runtime
-FROM eclipse-temurin:17-jre
+# Stage 2: Runtime
+# Chỉ dùng JRE (không có javac, gradle, mã nguồn) → image nhỏ và an toàn hơn
+FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-COPY --from=build /app/build/libs/*.jar app.jar
+# Chỉ lấy file .jar đã build từ stage "builder", bỏ lại toàn bộ mã nguồn & cache Gradle
+COPY --from=builder /app/build/libs/*.jar app.jar
+EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
